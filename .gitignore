@@ -1,3 +1,5 @@
 env/
 **/__pycache__/
 *.pyc
+# Bỏ qua thư mục dữ liệu cơ sở dữ liệu vector local
+chroma_db/
