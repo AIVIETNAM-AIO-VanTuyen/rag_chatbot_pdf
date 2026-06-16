@@ -98,3 +98,13 @@ def rag(question, collection, k=4):
         },
     )
     return resp["message"]["content"]
+
+def list_all_documents():
+    """Lấy danh sách tất cả các tên collection (tài liệu) đã lưu dưới ổ cứng."""
+    client = get_chroma_client()
+    try:
+        collections = client.list_collections()
+        # Trả về danh sách tên các collection
+        return [col.name for col in collections]
+    except Exception:
+        return []

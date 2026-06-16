@@ -1,65 +1,81 @@
+# chatbot_app_native.py
 import streamlit as st
-from app.core_rag import get_chroma_client, process_pdf, rag, sanitize_collection_name
+from app.core_rag import process_pdf, rag, get_chroma_client, list_all_documents
 
+# Khởi tạo trạng thái phiên làm việc (Session State) cho Streamlit
+for k, v in {"collection": None, "pdf_name": "", "chat_history": []}.items():
+    st.session_state.setdefault(k, v)
 
-for k,v in {"collection": None, "pdf_name": "", "chat_history":[]}.items():
-    st.session_state.setdefault(k,v)
-
-# =========================================================================
-# Xây dựng giao diện ứng dụng Web (Streamlit UI)
-# =========================================================================
 st.set_page_config(page_title="PDF RAG Chatbot", layout="wide", initial_sidebar_state="expanded")
-st.title("PDF RAG Assistant: Persistent & Smart")
-# Thiết kế thanh Sidebar điều khiển bên trái
-with st.sidebar:
-    st.subheader("Upload tài liệu")
-    f = st.file_uploader("Chọn file PDF cần hỏi đáp", type="pdf")
-    
-    # Trường hợp 1: Người dùng nhấn nút Xử lý PDF chủ động
-    if f and st.button("Xử lý PDF", use_container_width=True):
-        with st.spinner("Đang phân tích và xử lý tài liệu..."):
-            st.session_state.collection, n = process_pdf(f)
-            st.session_state.pdf_name = f.name
-            st.session_state.chat_history = []  
-            st.session_state.is_loaded = True
-            st.success(f"Đã nạp thành công: {n} chunks")
-            
-    # Trường hợp 2: Nếu người dùng Reload trang (F5) nhưng file f vẫn nằm ở uploader
-    # Hệ thống tự động nạp lại collection dưới ổ cứng lên mà không bắt bấm nút lại
-    elif f and f.name == st.session_state.pdf_name and not st.session_state.is_loaded:
-        client = get_chroma_client()
-        col_name = sanitize_collection_name(f.name)
-        try:
-            st.session_state.collection = client.get_collection(name=col_name)
-            st.session_state.is_loaded = True
-            st.sidebar.success("Đã tự động khôi phục dữ liệu từ ổ cứng!")
-        except Exception:
-            pass
+st.title("📚 Thư Viện Tài Liệu RAG AI")
 
-    # Hiển thị thông tin file hiện tại
-    if st.session_state.pdf_name:
-        st.info(f"Tài liệu hiện tại: {st.session_state.pdf_name}")
-        # THÊM TÍNH NĂNG: Nút xóa tài liệu chủ động
-        if st.button("❌ Đổi / Xóa tài liệu này", use_container_width=True):
-            st.session_state.collection = None
-            st.session_state.pdf_name = ""
-            st.session_state.chat_history = []
-            st.session_state.is_loaded = False
+# =========================================================================
+# Thiết kế thanh Sidebar điều khiển bên trái
+# =========================================================================
+with st.sidebar:
+    st.subheader("📁 Thư viện tài liệu đã nạp")
+    
+    # Lấy danh sách các tài liệu hiện có dưới ổ cứng
+    existing_docs = list_all_documents()
+    
+    if existing_docs:
+        # Nếu đã chọn một tài liệu trước đó, tìm vị trí của nó để làm mặc định
+        default_index = 0
+        if st.session_state.pdf_name in existing_docs:
+            default_index = existing_docs.index(st.session_state.pdf_name)
+            
+        # Hộp chọn tài liệu trong thư viện
+        selected_doc = st.selectbox(
+            "Chọn tài liệu để hỏi đáp:", 
+            options=existing_docs,
+            index=default_index
+        )
+        
+        # Nếu người dùng đổi lựa chọn trên selectbox, tiến hành nạp ngữ cảnh mới
+        if selected_doc != st.session_state.pdf_name:
+            client = get_chroma_client()
+            st.session_state.collection = client.get_collection(name=selected_doc)
+            st.session_state.pdf_name = selected_doc
+            st.session_state.chat_history = []  # Reset chat khi đổi tài liệu
             st.rerun()
     else:
-        st.info("Chưa có tài liệu được nạp")
+        st.info("Thư viện hiện đang trống.")
+
+    st.write("---")
+    st.subheader("📥 Nạp thêm tài liệu mới")
+    f = st.file_uploader("Chọn file PDF mới", type="pdf")
     
-    if st.button("Xóa lịch sử chat", use_container_width=True):
+    if f and st.button("Xử lý và Thêm vào thư viện", use_container_width=True):
+        with st.spinner("Đang phân tích và index dữ liệu..."):
+            # Hàm process_pdf sẽ tự động lấy tên file làm tên collection hợp lệ
+            col, n = process_pdf(f)
+            # Nạp thẳng file vừa upload làm ngữ cảnh hiện tại
+            st.session_state.collection = col
+            st.session_state.pdf_name = col.name
+            st.session_state.chat_history = []  
+            st.success(f"Đã thêm thành công: {f.name}")
+            st.rerun()
+            
+    st.write("---")
+    st.subheader("⚙️ Quản lý cuộc trò chuyện")
+    if st.button("🧹 Xóa lịch sử chat", use_container_width=True):
         st.session_state.chat_history = []
+        st.rerun()
+
+# =========================================================================
+# Khu vực hiển thị Khung Chat (Main UI)
+# =========================================================================
+if st.session_state.pdf_name:
+    st.caption(f"🤖 Bạn đang trò chuyện với tài liệu: **{st.session_state.pdf_name}**")
 
 # Hiển thị các tin nhắn cũ trong lịch sử hội thoại
 for m in st.session_state.chat_history:
     with st.chat_message(m["role"]):
         st.write(m["content"])
 
-# Kiểm tra điều kiện nạp tài liệu trước khi cho phép người dùng nhập câu hỏi
+# Kiểm tra điều kiện nạp tài liệu trước khi cho phép chat
 if st.session_state.collection is None:
-    st.info("Vui lòng upload và click nút 'Xử lý PDF' ở sidebar trước khi bắt đầu chat.")
+    st.info("Vui lòng nạp một tài liệu PDF để bắt đầu hệ thống hỏi đáp.")
     st.chat_input("Nhập câu hỏi...", disabled=True)
 else:
     q = st.chat_input("Nhập câu hỏi của bạn về nội dung tài liệu...")
