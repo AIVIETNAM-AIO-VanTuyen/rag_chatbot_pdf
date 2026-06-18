@@ -1,14 +1,20 @@
 # app/ui/chat_view.py
 import streamlit as st
 from app.core.database import get_chroma_client, list_all_documents
-from app.core.rag import rag, check_ollama_status, pull_model_stream
+from app.core.rag import rag, check_ollama_status, pull_model_stream, generate_mindmap
 from app.services.pdf_service import process_pdf
 from app.auth.service import logout
 
 def show_chat_view():
     """Hiển thị giao diện chính ứng dụng RAG Chatbot."""
     # Khởi tạo các trạng thái session state cho chat
-    for k, v in {"collection": None, "pdf_name": "", "chat_history": []}.items():
+    for k, v in {
+        "collection": None,
+        "pdf_name": "",
+        "chat_history": [],
+        "mindmap_content": "",
+        "show_mindmap": False
+    }.items():
         st.session_state.setdefault(k, v)
 
     # Cấu trúc giao diện & CSS tùy chỉnh để làm nổi bật nét cao cấp
@@ -93,6 +99,8 @@ def show_chat_view():
                 st.session_state.collection = client.get_collection(name=selected_doc)
                 st.session_state.pdf_name = selected_doc
                 st.session_state.chat_history = []  # Reset chat khi đổi tài liệu
+                st.session_state.mindmap_content = ""
+                st.session_state.show_mindmap = False
                 st.rerun()
         else:
             st.info("Thư viện hiện đang trống.")
@@ -109,9 +117,18 @@ def show_chat_view():
                 st.session_state.collection = col
                 st.session_state.pdf_name = col.name
                 st.session_state.chat_history = []  
+                st.session_state.mindmap_content = ""
+                st.session_state.show_mindmap = False
                 st.success(f"Đã thêm thành công: {f.name}")
                 st.rerun()
                 
+        if st.session_state.collection is not None:
+            st.write("---")
+            st.subheader("🧠 Phân tích tài liệu")
+            if st.button("📊 Xuất sơ đồ tư duy", use_container_width=True, type="primary"):
+                st.session_state.show_mindmap = True
+                st.rerun()
+
         st.write("---")
         st.subheader("⚙️ Quản lý cuộc trò chuyện")
         if st.button("🧹 Xóa lịch sử chat", use_container_width=True):
@@ -146,6 +163,38 @@ def show_chat_view():
                     except Exception as ex:
                         st.error(f"Không thể tải tự động mô hình {m_name}. Lỗi: {str(ex)}")
                         st.info(f"Cậu có thể tải thủ công ngoài Terminal bằng lệnh: `ollama pull {m_name}`")
+        return
+
+    
+    # Hiển thị sơ đồ tư duy nếu được chọn
+    if st.session_state.get("show_mindmap", False):
+        if st.button("⬅️ Quay lại Trò chuyện", type="secondary"):
+            st.session_state.show_mindmap = False
+            st.rerun()
+            
+        st.markdown(f"### 🧠 Sơ đồ tư duy tài liệu: **{st.session_state.pdf_name}**")
+        
+        if not st.session_state.get("mindmap_content"):
+            with st.spinner("Đang phân tích nội dung tài liệu và lập sơ đồ tư duy..."):
+                try:
+                    mindmap = generate_mindmap(st.session_state.collection)
+                    st.session_state.mindmap_content = mindmap
+                    st.rerun()
+                except Exception as ex:
+                    st.error(f"Lỗi khi tạo sơ đồ tư duy: {str(ex)}")
+        else:
+            st.markdown(
+                f"""
+                <div style="background: rgba(255, 255, 255, 0.02); padding: 1.5rem 2rem; border-radius: 16px; border: 1px solid rgba(255,255,255,0.06); margin-bottom: 1.5rem; line-height: 1.6; font-size: 1.05rem; white-space: pre-wrap; font-family: monospace;">
+{st.session_state.mindmap_content}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            
+            if st.button("🔄 Tạo lại sơ đồ tư duy", type="secondary"):
+                st.session_state.mindmap_content = ""
+                st.rerun()
         return
 
     

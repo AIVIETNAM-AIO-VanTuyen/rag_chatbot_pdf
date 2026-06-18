@@ -63,3 +63,32 @@ def check_ollama_status() -> tuple[bool, str, list[str]]:
 def pull_model_stream(model_name: str):
     """Tải model từ Ollama library và trả về stream tiến trình."""
     return ollama.pull(model_name, stream=True)
+
+def generate_mindmap(collection) -> str:
+    """Tự động phân tích tài liệu và sinh sơ đồ tư duy phân cấp."""
+    # Tìm kiếm các đoạn chứa thông tin tổng quan, mục lục hoặc nội dung cốt lõi
+    res = collection.query(query_embeddings=embed(["mục lục, tổng quan, tóm tắt, các chương chính"]), n_results=6)
+    context = "\n\n".join(res["documents"][0])
+    
+    prompt = f"""Bạn là chuyên gia phân tích tài liệu. Hãy tạo một sơ đồ tư duy (mindmap) chi tiết, khoa học và dễ hiểu dựa trên ngữ cảnh được cung cấp dưới đây.
+Sơ đồ tư duy cần bao gồm các nhánh chính (chủ đề lớn) và các nhánh con (chi tiết bổ trợ).
+
+Yêu cầu định dạng:
+Trình bày dưới dạng danh sách cây phân cấp bằng Markdown (thụt lề rõ ràng bằng tab hoặc dấu cách, dùng các ký hiệu như └──, ├──).
+
+Ngữ cảnh tài liệu:
+{context}
+
+Hãy viết toàn bộ bằng tiếng Việt, ngắn gọn, súc tích và tập trung vào cấu trúc tài liệu.
+"""
+    
+    resp = ollama.chat(
+        model=LLM_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        options={
+            "temperature": 0.2,
+            "num_ctx": 4096,
+            "num_predict": -1
+        },
+    )
+    return resp["message"]["content"]
