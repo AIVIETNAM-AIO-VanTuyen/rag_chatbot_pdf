@@ -1,7 +1,7 @@
 # app/ui/chat_view.py
 import streamlit as st
 from app.core.database import get_chroma_client, list_all_documents
-from app.core.rag import rag
+from app.core.rag import rag, check_ollama_status, pull_model_stream
 from app.services.pdf_service import process_pdf
 from app.auth.service import logout
 
@@ -122,6 +122,32 @@ def show_chat_view():
     # Khu vực hiển thị Khung Chat (Main UI)
     # =========================================================================
     st.markdown("<h1 style='margin-bottom: 0px;'>📚 Thư Viện Tài Liệu RAG AI</h1>", unsafe_allow_html=True)
+    
+    # Kiểm tra trạng thái kết nối và các mô hình của Ollama
+    ollama_ok, ollama_msg, missing_models = check_ollama_status()
+    if not ollama_ok:
+        st.warning(f"⚠️ **Thông báo hệ thống:** {ollama_msg}")
+        if missing_models:
+            st.info("Hệ thống có thể tự động tải các mô hình này về máy cho bạn. Vui lòng đảm bảo ứng dụng Ollama đã được mở trên máy tính.")
+            for m_name in missing_models:
+                if st.button(f"📥 Tải mô hình '{m_name}' về Ollama", key=f"pull_{m_name}", use_container_width=True):
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    try:
+                        for progress in pull_model_stream(m_name):
+                            if isinstance(progress, dict) and 'total' in progress and progress['total'] > 0:
+                                percent = int(progress['completed'] / progress['total'] * 100)
+                                progress_bar.progress(percent)
+                                status_text.text(f"Đang tải {m_name}: {percent}% ({progress['completed']}/{progress['total']} bytes)")
+                            else:
+                                status_text.text(f"Trạng thái: {progress.get('status', 'Đang tải...') if isinstance(progress, dict) else str(progress)}")
+                        st.success(f"🎉 Tải thành công mô hình {m_name}! Vui lòng tải lại trang.")
+                        st.rerun()
+                    except Exception as ex:
+                        st.error(f"Không thể tải tự động mô hình {m_name}. Lỗi: {str(ex)}")
+                        st.info(f"Cậu có thể tải thủ công ngoài Terminal bằng lệnh: `ollama pull {m_name}`")
+        return
+
     
     if st.session_state.pdf_name:
         st.markdown(

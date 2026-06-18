@@ -24,3 +24,42 @@ def rag(question: str, collection, k: int = 4) -> str:
         },
     )
     return resp["message"]["content"]
+def check_ollama_status() -> tuple[bool, str, list[str]]:
+    """
+    Kiểm tra xem Ollama có đang chạy không và mô hình cấu hình có sẵn không.
+    Trả về: (sẵn_sàng, thông_báo, danh_sách_model_thiếu)
+    """
+    try:
+        models_response = ollama.list()
+        
+        # Xử lý các phiên bản thư viện ollama khác nhau
+        local_models = []
+        if isinstance(models_response, dict) and "models" in models_response:
+            local_models = [m["name"] for m in models_response["models"]]
+        elif hasattr(models_response, "models"):
+            local_models = [m.model for m in models_response.models]
+        else:
+            local_models = []
+            
+        # Chuẩn hóa tên model (ví dụ "bge-m3:latest" thành cả "bge-m3:latest" và "bge-m3")
+        normalized_locals = []
+        for m in local_models:
+            normalized_locals.append(m)
+            if ":" in m:
+                normalized_locals.append(m.split(":")[0])
+                
+        missing = []
+        if EMBED_MODEL not in normalized_locals:
+            missing.append(EMBED_MODEL)
+        if LLM_MODEL not in normalized_locals:
+            missing.append(LLM_MODEL)
+            
+        if missing:
+            return False, f"Thiếu mô hình trong Ollama: {', '.join(missing)}", missing
+        return True, "Sẵn sàng", []
+    except Exception as e:
+        return False, f"Không thể kết nối tới Ollama. Hãy chắc chắn rằng ứng dụng Ollama đang chạy! Lỗi: {str(e)}", [EMBED_MODEL, LLM_MODEL]
+
+def pull_model_stream(model_name: str):
+    """Tải model từ Ollama library và trả về stream tiến trình."""
+    return ollama.pull(model_name, stream=True)
