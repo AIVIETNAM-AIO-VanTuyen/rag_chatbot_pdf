@@ -23,10 +23,6 @@ def show_chat_view():
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
         
-        body, [class*="st-"] {
-            font-family: 'Outfit', sans-serif;
-        }
-        
         /* Cải thiện sidebar */
         [data-testid="stSidebar"] {
             background-color: #0f172a;
@@ -183,14 +179,26 @@ def show_chat_view():
                 except Exception as ex:
                     st.error(f"Lỗi khi tạo sơ đồ tư duy: {str(ex)}")
         else:
-            st.markdown(
-                f"""
-                <div style="background: rgba(255, 255, 255, 0.02); padding: 1.5rem 2rem; border-radius: 16px; border: 1px solid rgba(255,255,255,0.06); margin-bottom: 1.5rem; line-height: 1.6; font-size: 1.05rem; white-space: pre-wrap; font-family: monospace;">
-{st.session_state.mindmap_content}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+            # Hàm trích xuất mã Graphviz DOT sạch từ câu trả lời của LLM
+            def extract_dot_code(text: str) -> str:
+                start_idx = text.find("digraph")
+                if start_idx != -1:
+                    end_idx = text.rfind("}")
+                    if end_idx != -1 and end_idx > start_idx:
+                        return text[start_idx:end_idx+1]
+                return text
+
+            dot_code = extract_dot_code(st.session_state.mindmap_content)
+            
+            # Hiển thị trực quan bằng st.graphviz_chart
+            try:
+                st.graphviz_chart(dot_code)
+            except Exception as e:
+                st.error(f"Có lỗi khi vẽ sơ đồ bằng Graphviz: {str(e)}")
+                
+            # Cho phép xem/copy mã nguồn DOT
+            with st.expander("📝 Xem mã nguồn sơ đồ (Graphviz DOT)"):
+                st.code(st.session_state.mindmap_content, language="dot")
             
             if st.button("🔄 Tạo lại sơ đồ tư duy", type="secondary"):
                 st.session_state.mindmap_content = ""

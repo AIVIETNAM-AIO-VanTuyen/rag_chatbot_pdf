@@ -70,21 +70,36 @@ def generate_mindmap(collection) -> str:
     res = collection.query(query_embeddings=embed(["mục lục, tổng quan, tóm tắt, các chương chính"]), n_results=6)
     context = "\n\n".join(res["documents"][0])
     
-    prompt = f"""Bạn là chuyên gia phân tích tài liệu. Hãy tạo một sơ đồ tư duy (mindmap) chi tiết, khoa học và dễ hiểu dựa trên ngữ cảnh được cung cấp dưới đây.
-Sơ đồ tư duy cần bao gồm các nhánh chính (chủ đề lớn) và các nhánh con (chi tiết bổ trợ).
+    mindmap_prompt = """Bạn là một robot chuyên nghiệp chỉ biết biên dịch văn bản thành ngôn ngữ DOT của Graphviz. 
+                    Nhiệm vụ của bạn là đọc ngữ cảnh hợp đồng và chuyển nó thành cấu trúc sơ đồ tư duy hình cây.
 
-Yêu cầu định dạng:
-Trình bày dưới dạng danh sách cây phân cấp bằng Markdown (thụt lề rõ ràng bằng tab hoặc dấu cách, dùng các ký hiệu như └──, ├──).
+                    QUY TẮC BẮT BUỘC KHẮT KHE:
+                    1. KHÔNG viết lời mở đầu, KHÔNG viết lời giải thích, KHÔNG dùng markdown danh sách (dấu gạch đầu dòng).
+                    2. Chỉ trả về duy nhất mã nguồn bắt đầu bằng cụm từ 'digraph G {{' và kết thúc bằng '}}'.
+                    3. Các mối quan hệ viết theo cú pháp: "A" -> "B";
+                    4. Node text ngắn gọn từ 2-4 từ, dùng tiếng Việt.
 
-Ngữ cảnh tài liệu:
-{context}
+                    VÍ DỤ MẪU:
+                    Nếu văn bản là: "Hợp đồng giữa bên A và bên B về việc thanh toán trong 3 ngày."
+                    Bạn phải trả về chính xác:
+                    digraph G {{
+                        rankdir=LR;
+                        node [shape=box, style=rounded];
+                        "Hợp đồng" -> "Bên tham gia";
+                        "Bên tham gia" -> "Bên A";
+                        "Bên tham gia" -> "Bên B";
+                        "Hợp đồng" -> "Thanh toán";
+                        "Thanh toán" -> "Trong 3 ngày";
+                    }}
 
-Hãy viết toàn bộ bằng tiếng Việt, ngắn gọn, súc tích và tập trung vào cấu trúc tài liệu.
-"""
+                    Nội dung ngữ cảnh tài liệu cần xử lý:
+                    {context}
+
+                    Mã DOT sơ đồ tư duy:"""
     
     resp = ollama.chat(
         model=LLM_MODEL,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[{"role": "user", "content": mindmap_prompt.format(context=context)}],
         options={
             "temperature": 0.2,
             "num_ctx": 4096,
