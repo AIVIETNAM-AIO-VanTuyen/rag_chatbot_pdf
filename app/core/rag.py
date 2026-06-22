@@ -58,7 +58,8 @@ def check_ollama_status() -> tuple[bool, str, list[str]]:
             return False, f"Thiếu mô hình trong Ollama: {', '.join(missing)}", missing
         return True, "Sẵn sàng", []
     except Exception as e:
-        return False, f"Không thể kết nối tới Ollama. Hãy chắc chắn rằng ứng dụng Ollama đang chạy! Lỗi: {str(e)}", [EMBED_MODEL, LLM_MODEL]
+        # Trả về danh sách model thiếu rỗng khi lỗi kết nối (không hiển thị nút tải mô hình nếu Ollama chưa bật)
+        return False, f"Không thể kết nối tới Ollama. Hãy chắc chắn rằng ứng dụng Ollama đang chạy! Lỗi: {str(e)}", []
 
 def pull_model_stream(model_name: str):
     """Tải model từ Ollama library và trả về stream tiến trình."""

@@ -5,6 +5,13 @@ from app.core.rag import rag, check_ollama_status, pull_model_stream, generate_m
 from app.services.pdf_service import process_pdf
 from app.auth.service import logout
 
+def clean_error(ex: Exception) -> str:
+    """Loại bỏ link tải Ollama trong thông báo lỗi nếu có."""
+    msg = str(ex)
+    for link in [" https://ollama.com/download", "https://ollama.com/download"]:
+        msg = msg.replace(link, "")
+    return msg.strip()
+
 def show_chat_view():
     """Hiển thị giao diện chính ứng dụng RAG Chatbot."""
     # Khởi tạo các trạng thái session state cho chat
@@ -107,16 +114,19 @@ def show_chat_view():
         
         if f and st.button("🚀 Xử lý và Thêm vào thư viện", use_container_width=True, type="primary"):
             with st.spinner("Đang phân tích và index dữ liệu..."):
-                # Gọi service xử lý file PDF
-                col, n = process_pdf(f)
-                # Nạp thẳng file vừa upload làm ngữ cảnh hiện tại
-                st.session_state.collection = col
-                st.session_state.pdf_name = col.name
-                st.session_state.chat_history = []  
-                st.session_state.mindmap_content = ""
-                st.session_state.show_mindmap = False
-                st.success(f"Đã thêm thành công: {f.name}")
-                st.rerun()
+                try:
+                    # Gọi service xử lý file PDF
+                    col, n = process_pdf(f)
+                    # Nạp thẳng file vừa upload làm ngữ cảnh hiện tại
+                    st.session_state.collection = col
+                    st.session_state.pdf_name = col.name
+                    st.session_state.chat_history = []  
+                    st.session_state.mindmap_content = ""
+                    st.session_state.show_mindmap = False
+                    st.success(f"Đã thêm thành công: {f.name} ({n} chunks)")
+                    st.rerun()
+                except Exception as ex:
+                    st.error(f"❌ Không thể xử lý file PDF. Lỗi: {clean_error(ex)}")
                 
         if st.session_state.collection is not None:
             st.write("---")
@@ -135,31 +145,6 @@ def show_chat_view():
     # Khu vực hiển thị Khung Chat (Main UI)
     # =========================================================================
     st.markdown("<h1 style='margin-bottom: 0px;'>📚 Thư Viện Tài Liệu RAG AI</h1>", unsafe_allow_html=True)
-    
-    # Kiểm tra trạng thái kết nối và các mô hình của Ollama
-    ollama_ok, ollama_msg, missing_models = check_ollama_status()
-    if not ollama_ok:
-        st.warning(f"⚠️ **Thông báo hệ thống:** {ollama_msg}")
-        if missing_models:
-            st.info("Hệ thống có thể tự động tải các mô hình này về máy cho bạn. Vui lòng đảm bảo ứng dụng Ollama đã được mở trên máy tính.")
-            for m_name in missing_models:
-                if st.button(f"📥 Tải mô hình '{m_name}' về Ollama", key=f"pull_{m_name}", use_container_width=True):
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
-                    try:
-                        for progress in pull_model_stream(m_name):
-                            if isinstance(progress, dict) and 'total' in progress and progress['total'] > 0:
-                                percent = int(progress['completed'] / progress['total'] * 100)
-                                progress_bar.progress(percent)
-                                status_text.text(f"Đang tải {m_name}: {percent}% ({progress['completed']}/{progress['total']} bytes)")
-                            else:
-                                status_text.text(f"Trạng thái: {progress.get('status', 'Đang tải...') if isinstance(progress, dict) else str(progress)}")
-                        st.success(f"🎉 Tải thành công mô hình {m_name}! Vui lòng tải lại trang.")
-                        st.rerun()
-                    except Exception as ex:
-                        st.error(f"Không thể tải tự động mô hình {m_name}. Lỗi: {str(ex)}")
-                        st.info(f"Cậu có thể tải thủ công ngoài Terminal bằng lệnh: `ollama pull {m_name}`")
-        return
 
     
     # Hiển thị sơ đồ tư duy nếu được chọn
@@ -177,7 +162,7 @@ def show_chat_view():
                     st.session_state.mindmap_content = mindmap
                     st.rerun()
                 except Exception as ex:
-                    st.error(f"Lỗi khi tạo sơ đồ tư duy: {str(ex)}")
+                    st.error(f"Lỗi khi tạo sơ đồ tư duy: {clean_error(ex)}")
         else:
             # Hàm trích xuất mã Graphviz DOT sạch từ câu trả lời của LLM
             def extract_dot_code(text: str) -> str:
@@ -234,8 +219,10 @@ def show_chat_view():
                 st.write(q)
                 
             with st.spinner("Đang trích xuất dữ liệu và suy nghĩ..."):
-                ans = rag(q, st.session_state.collection)
-                
-            with st.chat_message("assistant"):
-                st.write(ans)
-            st.session_state.chat_history.append({"role": "assistant", "content": ans})
+                try:
+                    ans = rag(q, st.session_state.collection)
+                    with st.chat_message("assistant"):
+                        st.write(ans)
+                    st.session_state.chat_history.append({"role": "assistant", "content": ans})
+                except Exception as ex:
+                    st.error(f"❌ Đã có lỗi xảy ra vui lòng thử lại sau.")

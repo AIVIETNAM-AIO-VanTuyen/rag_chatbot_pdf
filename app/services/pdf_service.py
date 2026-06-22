@@ -21,6 +21,14 @@ def chunk_text_with_page(text: str, page_num: int, size: int = 1000, overlap: in
             
     if cur.strip():
         chunks.append(page_prefix + cur.strip())
+        
+    # In debug dữ liệu sau khi cắt
+    print(f"\n--- [DEBUG] Kết quả cắt văn bản Trang {page_num} ({len(chunks)} chunks) ---")
+    for idx, chunk in enumerate(chunks):
+        print(f"  Chunk {idx + 1} (Độ dài {len(chunk)} ký tự):")
+        print(f"    {repr(chunk)}")
+    print("------------------------------------------------------------------\n")
+    
     return chunks
 
 def process_pdf(uploaded_file):
