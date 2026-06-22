@@ -17,7 +17,7 @@ Dự án **PDF RAG Chatbot** là một ứng dụng hỏi đáp thông minh dự
    - Mô hình ngôn ngữ (LLM): `vicuna:7b-v1.5-q5_1` (chạy qua Ollama)
 4. **Cloud Fallback (Dự phòng)**:
    - Mô hình nhúng (Embedding): `gemini-embedding-001` (chạy qua Google GenAI API)
-   - Mô hình ngôn ngữ (LLM): `gemini-2.5-flash` (chạy qua Google GenAI API)
+   - Mô hình ngôn ngữ (LLM): `gemini-3.5-flash` (chạy qua Google GenAI API)
 5. **Trích xuất PDF**: `pypdf`
 
 ---
