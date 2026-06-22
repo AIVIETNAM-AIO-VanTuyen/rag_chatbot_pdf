@@ -1,6 +1,6 @@
 # 📚 PDF RAG Chatbot with Streamlit
 
-Dự án **PDF RAG Chatbot** là một ứng dụng hỏi đáp thông minh dựa trên nội dung các tài liệu PDF do người dùng tải lên. Ứng dụng sử dụng kỹ thuật **RAG (Retrieval-Augmented Generation)** để trích xuất ngữ cảnh chính xác từ tài liệu và trả lời câu hỏi. 
+Dự án **PDF RAG Chatbot** là một ứng dụng hỏi đáp thông minh dựa trên nội dung tài liệu PDF do người dùng tải lên. Ứng dụng sử dụng kỹ thuật **RAG (Retrieval-Augmented Generation)** để trích xuất ngữ cảnh chính xác từ tài liệu và trả lời câu hỏi.
 
 Ứng dụng hỗ trợ cơ chế chạy song song và dự phòng linh hoạt:
 - **Chạy cục bộ (Local)**: Sử dụng Ollama.
@@ -11,7 +11,7 @@ Dự án **PDF RAG Chatbot** là một ứng dụng hỏi đáp thông minh dự
 ## 🛠️ Công nghệ sử dụng
 
 1. **Frontend & App Framework**: [Streamlit](https://streamlit.io/) (Python)
-2. **Vector Database**: [ChromaDB](https://www.trychroma.com/) (lưu trữ cục bộ dưới ổ cứng)
+2. **Vector Database**: [ChromaDB](https://www.trychroma.com/) (Chạy **In-memory** tạm thời trong bộ nhớ RAM, tự động dọn dẹp khi tải tài liệu mới)
 3. **Local Engine (Mặc định)**:
    - Mô hình nhúng (Embedding): `bge-m3` (chạy qua Ollama)
    - Mô hình ngôn ngữ (LLM): `vicuna:7b-v1.5-q5_1` (chạy qua Ollama)
@@ -27,22 +27,20 @@ Dự án **PDF RAG Chatbot** là một ứng dụng hỏi đáp thông minh dự
 ```text
 rag_chatbot_pdf/
 ├── app.py                     # Điểm chạy chính (Main Entrypoint)
-├── .env                       # File cấu hình khóa bảo mật (API Key)
+├── .env                       # File cấu hình khóa bảo mật (API Key) - Đã được thêm vào .gitignore
 ├── .env.example               # File mẫu cấu hình
 ├── app/                       # Thư mục chứa mã nguồn chính
-│   ├── config.py              # Cấu hình Model, Prompt, Đường dẫn VectorDB
+│   ├── config.py              # Cấu hình Model, Prompt
 │   ├── auth/                  # Quản lý xác thực người dùng
 │   │   └── service.py
-│   ├── core/                  # Core RAG và Database
-│   │   ├── database.py
-│   │   └── rag.py
+│   ├── core/                  # Core RAG và Database (Cấu trúc OOP)
+│   │   ├── database.py        # Lớp ChromaDatabaseManager (Singleton)
+│   │   └── rag.py             # Lớp AIService (Singleton)
 │   ├── services/              # Xử lý nghiệp vụ PDF
-│   │   └── pdf_service.py
+│   │   └── pdf_service.py     # Lớp PDFProcessor (OOP)
 │   └── ui/                    # Các màn hình giao diện (Streamlit Views)
-│       ├── chat_view.py
-│       └── login_view.py
-├── data/                      # Lưu trữ dữ liệu
-│   └── chroma_db/             # Cơ sở dữ liệu Vector (ChromaDB)
+│       ├── chat_view.py       # Màn hình hỏi đáp chính
+│       └── login_view.py      # Màn hình đăng nhập
 ├── requirements.txt           # Danh sách thư viện phụ thuộc
 └── README.md                  # Hướng dẫn dự án
 ```
@@ -112,10 +110,10 @@ Sau khi khởi chạy, màn hình đăng nhập (Login View) sẽ hiển thị. 
 
 ## 💡 Các tính năng nổi bật
 
-- **Tải lên & Xử lý PDF**: Tự động bóc tách, chia nhỏ văn bản (chunking) theo trang và lưu trữ lâu dài dưới dạng vector.
+- **Tái cấu trúc hướng đối tượng (OOP)**: Toàn bộ lõi ứng dụng được viết bằng các lớp đối tượng chuyên biệt (`ChromaDatabaseManager`, `AIService`, `PDFProcessor`) kết hợp cùng Singleton Pattern để tối ưu tài nguyên và dễ mở rộng.
+- **Lưu trữ Vector In-Memory**: Vector chỉ được lưu tạm thời trong RAM (không lưu xuống ổ cứng). Mỗi lần người dùng tải lên tài liệu mới, hệ thống tự động dọn dẹp các tài liệu cũ để đảm bảo **chỉ hỏi đáp thông tin của tài liệu hiện tại**.
 - **Cơ chế dự phòng thông minh (Gemini Fallback)**: Tự động chuyển đổi mượt mà sang Gemini API nếu phát hiện Ollama offline hoặc thiếu mô hình.
+- **Xử lý trượt & Giới hạn tần suất gọi API (Rate Limit / Overloaded)**: Trích xuất embedding bằng Gemini theo từng batch nhỏ (tối đa 20 văn bản/lần) đi kèm cơ chế tự động nghỉ (sleep) và thử lại có thời gian giãn cách tăng dần (Exponential Backoff) để xử lý lỗi 429/503.
 - **Tránh lỗi Dimension Mismatch**: Lưu trữ thông tin loại mô hình nhúng (`ollama` hoặc `gemini`) vào metadata của từng tài liệu. Ngăn chặn việc truy vấn chéo sai chiều không gian vector.
-- **Thư viện tài liệu**: Sidebar cho phép chọn nhanh các tài liệu đã được lập chỉ mục trước đó mà không cần upload lại.
-- **Trò chuyện ngữ cảnh**: RAG tự động tìm kiếm thông tin liên quan nhất và kết xuất câu trả lời chính xác, kèm số trang tham chiếu từ tài liệu gốc.
-- **Quản lý hội thoại**: Xóa lịch sử chat chỉ bằng một nút bấm hoặc đổi ngữ cảnh tự động khi chuyển đổi tài liệu.
+- **Xuất Sơ đồ tư duy (Mindmap)**: Tự động phân tích nội dung cốt lõi của tài liệu và kết xuất ra dạng sơ đồ tư duy phân cấp trực quan bằng Graphviz DOT.
 - **Giao diện Glassmorphism**: Thiết kế bắt mắt, phông chữ Outfit sang trọng và hiệu ứng chuyển đổi mượt mà.
