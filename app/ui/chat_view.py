@@ -1,8 +1,7 @@
 # app/ui/chat_view.py
 import streamlit as st
-from app.core.database import get_chroma_client, list_all_documents
-from app.core.rag import rag, check_ollama_status, pull_model_stream, generate_mindmap
-from app.services.pdf_service import process_pdf
+from app.core.rag import ai_service
+from app.services.pdf_service import PDFProcessor
 from app.auth.service import logout
 
 def clean_error(ex: Exception) -> str:
@@ -77,36 +76,7 @@ def show_chat_view():
             logout()
             st.rerun()
             
-        st.write("---")
-        st.subheader("📁 Thư viện tài liệu đã nạp")
-        
-        # Lấy danh sách các tài liệu hiện có từ Database
-        existing_docs = list_all_documents()
-        
-        if existing_docs:
-            # Nếu đã chọn một tài liệu trước đó, tìm vị trí của nó để làm mặc định
-            default_index = 0
-            if st.session_state.pdf_name in existing_docs:
-                default_index = existing_docs.index(st.session_state.pdf_name)
-                
-            # Hộp chọn tài liệu trong thư viện
-            selected_doc = st.selectbox(
-                "Chọn tài liệu để hỏi đáp:", 
-                options=existing_docs,
-                index=default_index
-            )
-            
-            # Nếu người dùng đổi lựa chọn trên selectbox, tiến hành nạp ngữ cảnh mới
-            if selected_doc != st.session_state.pdf_name:
-                client = get_chroma_client()
-                st.session_state.collection = client.get_collection(name=selected_doc)
-                st.session_state.pdf_name = selected_doc
-                st.session_state.chat_history = []  # Reset chat khi đổi tài liệu
-                st.session_state.mindmap_content = ""
-                st.session_state.show_mindmap = False
-                st.rerun()
-        else:
-            st.info("Thư viện hiện đang trống.")
+
  
         st.write("---")
         st.subheader("📥 Nạp thêm tài liệu mới")
@@ -115,8 +85,9 @@ def show_chat_view():
         if f and st.button("🚀 Xử lý và Thêm vào thư viện", use_container_width=True, type="primary"):
             with st.spinner("Đang phân tích và index dữ liệu..."):
                 try:
-                    # Gọi service xử lý file PDF
-                    col, n = process_pdf(f)
+                    # Khởi tạo bộ xử lý PDF (OOP) và tiến hành trích xuất
+                    processor = PDFProcessor()
+                    col, n = processor.process(f)
                     # Nạp thẳng file vừa upload làm ngữ cảnh hiện tại
                     st.session_state.collection = col
                     st.session_state.pdf_name = col.name
@@ -158,7 +129,7 @@ def show_chat_view():
         if not st.session_state.get("mindmap_content"):
             with st.spinner("Đang phân tích nội dung tài liệu và lập sơ đồ tư duy..."):
                 try:
-                    mindmap = generate_mindmap(st.session_state.collection)
+                    mindmap = ai_service.generate_mindmap(st.session_state.collection)
                     st.session_state.mindmap_content = mindmap
                     st.rerun()
                 except Exception as ex:
@@ -209,7 +180,7 @@ def show_chat_view():
 
     # Kiểm tra điều kiện nạp tài liệu trước khi cho phép chat
     if st.session_state.collection is None:
-        st.info("Vui lòng nạp hoặc chọn một tài liệu PDF từ thanh bên để bắt đầu hệ thống hỏi đáp.")
+        st.info("Vui lòng nạp tài liệu PDF từ thanh bên để bắt đầu hỏi đáp.")
         st.chat_input("Nhập câu hỏi...", disabled=True)
     else:
         q = st.chat_input("Nhập câu hỏi của bạn về nội dung tài liệu...")
@@ -220,9 +191,10 @@ def show_chat_view():
                 
             with st.spinner("Đang trích xuất dữ liệu và suy nghĩ..."):
                 try:
-                    ans = rag(q, st.session_state.collection)
+                    ans = ai_service.query_rag(q, st.session_state.collection)
                     with st.chat_message("assistant"):
                         st.write(ans)
                     st.session_state.chat_history.append({"role": "assistant", "content": ans})
                 except Exception as ex:
+                    print(ex)
                     st.error(f"❌ Đã có lỗi xảy ra vui lòng thử lại sau.")

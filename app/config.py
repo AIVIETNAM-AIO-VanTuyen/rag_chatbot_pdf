@@ -1,4 +1,14 @@
 # app/config.py
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
+
+# Khóa API cho Google Gemini
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_LLM_MODEL = "gemini-3.5-flash"
+GEMINI_EMBED_MODEL = "gemini-embedding-001"
 
 # Cấu hình định danh mô hình sử dụng
 LLM_MODEL = "vicuna:7b-v1.5-q5_1"

@@ -5,3 +5,4 @@ venv/
 *.pyc
 # Bỏ qua thư mục dữ liệu cơ sở dữ liệu vector local
 data/chroma_db/
+.env
