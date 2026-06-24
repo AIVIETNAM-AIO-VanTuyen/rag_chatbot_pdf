@@ -1,4 +1,5 @@
 # app.py
+# Trigger hot reload: them anh minh hoa vao README.md
 import streamlit as st
 from app.auth.service import init_auth_state
 from app.ui.login_view import show_login_view

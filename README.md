@@ -19,6 +19,7 @@ Dự án **PDF RAG Chatbot** là một ứng dụng hỏi đáp thông minh dự
    - Mô hình nhúng (Embedding): `gemini-embedding-001` (chạy qua Google GenAI API)
    - Mô hình ngôn ngữ (LLM): `gemini-3.5-flash` (chạy qua Google GenAI API)
 5. **Trích xuất PDF**: `pypdf`
+6. **Vẽ sơ đồ tư duy**: [Graphviz](https://graphviz.org/) (Tích hợp trực tiếp qua Streamlit, tự động co giãn vừa màn hình, không lỗi cú pháp)
 
 ---
 
@@ -115,5 +116,17 @@ Sau khi khởi chạy, màn hình đăng nhập (Login View) sẽ hiển thị. 
 - **Cơ chế dự phòng thông minh (Gemini Fallback)**: Tự động chuyển đổi mượt mà sang Gemini API nếu phát hiện Ollama offline hoặc thiếu mô hình.
 - **Xử lý trượt & Giới hạn tần suất gọi API (Rate Limit / Overloaded)**: Trích xuất embedding bằng Gemini theo từng batch nhỏ (tối đa 20 văn bản/lần) đi kèm cơ chế tự động nghỉ (sleep) và thử lại có thời gian giãn cách tăng dần (Exponential Backoff) để xử lý lỗi 429/503.
 - **Tránh lỗi Dimension Mismatch**: Lưu trữ thông tin loại mô hình nhúng (`ollama` hoặc `gemini`) vào metadata của từng tài liệu. Ngăn chặn việc truy vấn chéo sai chiều không gian vector.
-- **Xuất Sơ đồ tư duy (Mindmap)**: Tự động phân tích nội dung cốt lõi của tài liệu và kết xuất ra dạng sơ đồ tư duy phân cấp trực quan bằng Graphviz DOT.
+- **Xuất Sơ đồ tư duy đa dạng (Mindmap)**: Tự động trích xuất nội dung cốt lõi của tài liệu để vẽ sơ đồ tư duy trực quan bằng **Graphviz** với 4 kiểu định dạng hiển thị: Tỏa tròn hai bên từ tâm, Nhánh ngang, Nhánh dọc và Tab chuyên biệt Tỏa tròn bong bóng (`twopi`), hỗ trợ tự động co giãn vừa vặn màn hình và tích hợp sẵn nút ghi chú chi tiết nét đứt.
 - **Giao diện Glassmorphism**: Thiết kế bắt mắt, phông chữ Outfit sang trọng và hiệu ứng chuyển đổi mượt mà.
+
+---
+
+## 📷 Hình ảnh minh họa sơ đồ tư duy
+
+Dưới đây là hình ảnh thực tế các dạng sơ đồ tư duy được tạo tự động từ tài liệu PDF:
+
+### 1. Sơ đồ trực quan tỏa hai bên (Visual Diagram)
+![Sơ đồ trực quan tỏa hai bên](visual_diagram.png)
+
+### 2. Sơ đồ tỏa tròn bong bóng (Circular Diagram)
+![Sơ đồ tỏa tròn bong bóng](circular_diagram.png)

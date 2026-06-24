@@ -181,15 +181,16 @@ class AIService:
         embedding_model = metadata.get("embedding_model", "ollama")
 
         mindmap_prompt = """You are a professional AI expert skilled in converting document content into hierarchical mindmap structures in JSON format.
-Your task is to read the provided document context and transform it into a well-organized JSON object representing the mindmap.
+Your task is to read the provided document context and transform it into a well-organized JSON object representing the mindmap, including the core definitions, concepts, or explanations.
 
 STRICT MANDATORY RULES:
 1. Do NOT write any introduction, explanation, or markdown. Output ONLY valid JSON.
 2. Return a JSON object with "title" (string) and "nodes" (array) fields.
-3. Each node object must have: {{"id": string, "label": string (Vietnamese only), "parent": string or null}}
-4. Keep node labels concise (2-4 words) and write ALL labels in Vietnamese.
-5. Use hierarchical parent-child relationships.
-6. Ensure the JSON is valid and properly formatted.
+3. Each node object must have: {{"id": string, "label": string (Vietnamese only), "parent": string or null, "description": string or null}}
+4. Keep node labels concise (2-4 words) for topics/categories. 
+5. For leaf nodes or nodes representing specific concepts, terms, definitions, or details in the document, provide a short, clear, and informative explanation (1-2 sentences in Vietnamese) in the "description" field. For grouping nodes, folders, or high-level categories, set "description" to null.
+6. Use hierarchical parent-child relationships.
+7. Ensure the JSON is valid and properly formatted.
 
 EXAMPLE:
 If the document is about: "A software project that includes frontend development, backend API services, and database management with security protocols."
@@ -197,12 +198,12 @@ You must return exactly:
 {{
     "title": "Dự án phần mềm",
     "nodes": [
-        {{"id": "1", "label": "Dự án phần mềm", "parent": null}},
-        {{"id": "2", "label": "Thành phần chính", "parent": "1"}},
-        {{"id": "3", "label": "Frontend", "parent": "2"}},
-        {{"id": "4", "label": "Backend API", "parent": "2"}},
-        {{"id": "5", "label": "Quản lý dữ liệu", "parent": "2"}},
-        {{"id": "6", "label": "Giao thức bảo mật", "parent": "5"}}
+        {{"id": "1", "label": "Dự án phần mềm", "parent": null, "description": null}},
+        {{"id": "2", "label": "Thành phần chính", "parent": "1", "description": null}},
+        {{"id": "3", "label": "Frontend", "parent": "2", "description": "Giao diện người dùng được xây dựng bằng HTML, CSS, và React JS."}},
+        {{"id": "4", "label": "Backend API", "parent": "2", "description": "Hệ thống dịch vụ API xử lý logic nghiệp vụ viết bằng Python FastAPI."}},
+        {{"id": "5", "label": "Quản lý dữ liệu", "parent": "2", "description": "Lưu trữ dữ liệu có cấu trúc với PostgreSQL và cấu hình cơ chế sao lưu."}},
+        {{"id": "6", "label": "Giao thức bảo mật", "parent": "5", "description": "Áp dụng mã hóa SSL/TLS cho đường truyền và hash mật khẩu bằng bcrypt."}}
     ]
 }}
 
