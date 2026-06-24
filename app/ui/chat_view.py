@@ -135,7 +135,18 @@ def show_chat_view():
                 except Exception as ex:
                     st.error(f"Lỗi khi tạo sơ đồ tư duy: {clean_error(ex)}")
         else:
-            # Hàm trích xuất mã Graphviz DOT sạch từ câu trả lời của LLM
+            # Xử lý hiển thị dựa trên kiểu dữ liệu của mindmap_content (dict hoặc str)
+            mindmap_data = st.session_state.mindmap_content
+            
+            # Nếu là chuỗi JSON, cố gắng parse sang dict
+            if isinstance(mindmap_data, str):
+                try:
+                    import json
+                    mindmap_data = json.loads(mindmap_data)
+                except Exception:
+                    pass
+
+            # Hàm trích xuất mã Graphviz DOT nếu dữ liệu là chuỗi chứa mã DOT
             def extract_dot_code(text: str) -> str:
                 start_idx = text.find("digraph")
                 if start_idx != -1:
@@ -144,18 +155,63 @@ def show_chat_view():
                         return text[start_idx:end_idx+1]
                 return text
 
-            dot_code = extract_dot_code(st.session_state.mindmap_content)
-            
-            # Hiển thị trực quan bằng st.graphviz_chart
-            try:
-                st.graphviz_chart(dot_code)
-            except Exception as e:
-                st.error(f"Có lỗi khi vẽ sơ đồ bằng Graphviz: {str(e)}")
+            # Hàm chuyển đổi JSON mindmap sang định dạng Graphviz DOT
+            def json_to_dot(data: dict) -> str:
+                nodes = data.get("nodes", [])
+                dot_lines = [
+                    "digraph G {",
+                    "    // Cấu hình hiển thị sơ đồ đẹp, hiện đại",
+                    '    graph [rankdir=LR, bgcolor="transparent", pad=0.5, nodesep=0.4, ranksep=0.8];',
+                    '    node [shape=box, style="filled,rounded", color="#6366f1", fillcolor="#1e1b4b", fontname="Arial", fontcolor="#ffffff", penwidth=2, fontsize=11, margin="0.2,0.1"];',
+                    '    edge [color="#6366f1", penwidth=2, arrowhead=normal, arrowsize=0.8];',
+                    ""
+                ]
                 
-            # Cho phép xem/copy mã nguồn DOT
-            with st.expander("📝 Xem mã nguồn sơ đồ (Graphviz DOT)"):
-                st.code(st.session_state.mindmap_content, language="dot")
+                # Khai báo các node
+                for node in nodes:
+                    node_id = str(node.get("id", ""))
+                    label = str(node.get("label", "")).replace('"', '\\"')
+                    if node_id:
+                        parent = node.get("parent")
+                        if parent is None or parent == "" or parent == "null":
+                            dot_lines.append(f'    "{node_id}" [label="{label}", fillcolor="#312e81", color="#818cf8", fontsize=13, penwidth=3];')
+                        else:
+                            dot_lines.append(f'    "{node_id}" [label="{label}"];')
+                            
+                dot_lines.append("")
+                
+                # Khai báo các cạnh (parent -> child)
+                for node in nodes:
+                    node_id = str(node.get("id", ""))
+                    parent_id = node.get("parent")
+                    if node_id and parent_id is not None and parent_id != "" and parent_id != "null":
+                        parent_id = str(parent_id)
+                        dot_lines.append(f'    "{parent_id}" -> "{node_id}";')
+                        
+                dot_lines.append("}")
+                return "\n".join(dot_lines)
+
+            # Phân tách giao diện thành 2 Tab: Sơ đồ tư duy và Dữ liệu JSON
+            tab1, tab2 = st.tabs(["📊 Sơ đồ tư duy (Graphviz)", "📝 Cấu trúc dữ liệu JSON"])
             
+            with tab1:
+                if isinstance(mindmap_data, dict):
+                    dot_code = json_to_dot(mindmap_data)
+                else:
+                    dot_code = extract_dot_code(str(mindmap_data))
+                
+                try:
+                    st.graphviz_chart(dot_code)
+                except Exception as e:
+                    st.error(f"Có lỗi khi vẽ sơ đồ bằng Graphviz: {str(e)}")
+                    st.code(dot_code, language="dot")
+                    
+            with tab2:
+                if isinstance(mindmap_data, dict):
+                    st.json(mindmap_data)
+                else:
+                    st.code(mindmap_data, language="json")
+
             if st.button("🔄 Tạo lại sơ đồ tư duy", type="secondary"):
                 st.session_state.mindmap_content = ""
                 st.rerun()

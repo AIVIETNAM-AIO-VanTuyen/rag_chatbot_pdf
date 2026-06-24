@@ -1,5 +1,6 @@
 # app/core/rag.py
 import time
+import json
 import ollama
 from google import genai
 from app.config import (
@@ -179,32 +180,36 @@ class AIService:
         metadata = getattr(collection, 'metadata', None) or {}
         embedding_model = metadata.get("embedding_model", "ollama")
 
-        mindmap_prompt = """Bạn là một robot chuyên nghiệp chỉ biết biên dịch văn bản thành ngôn ngữ DOT của Graphviz. 
-                        Nhiệm vụ của bạn là đọc ngữ cảnh hợp đồng và chuyển nó thành cấu trúc sơ đồ tư duy hình cây.
+        mindmap_prompt = """You are a professional AI expert skilled in converting document content into hierarchical mindmap structures in JSON format.
+Your task is to read the provided document context and transform it into a well-organized JSON object representing the mindmap.
 
-                        QUY TẮC BẮT BUỘC KHẮT KHE:
-                        1. KHÔNG viết lời mở đầu, KHÔNG viết lời giải thích, KHÔNG dùng markdown danh sách (dấu gạch đầu dòng).
-                        2. Chỉ trả về duy nhất mã nguồn bắt đầu bằng cụm từ 'digraph G {{' và kết thúc bằng '}}'.
-                        3. Các mối quan hệ viết theo cú pháp: "A" -> "B";
-                        4. Node text ngắn gọn từ 2-4 từ, dùng tiếng Việt.
+STRICT MANDATORY RULES:
+1. Do NOT write any introduction, explanation, or markdown. Output ONLY valid JSON.
+2. Return a JSON object with "title" (string) and "nodes" (array) fields.
+3. Each node object must have: {{"id": string, "label": string (Vietnamese only), "parent": string or null}}
+4. Keep node labels concise (2-4 words) and write ALL labels in Vietnamese.
+5. Use hierarchical parent-child relationships.
+6. Ensure the JSON is valid and properly formatted.
 
-                        VÍ DỤ MẪU:
-                        Nếu văn bản là: "Hợp đồng giữa bên A và bên B về việc thanh toán trong 3 ngày."
-                        Bạn phải trả về chính xác:
-                        digraph G {{
-                            rankdir=LR;
-                            node [shape=box, style=rounded];
-                            "Hợp đồng" -> "Bên tham gia";
-                            "Bên tham gia" -> "Bên A";
-                            "Bên tham gia" -> "Bên B";
-                            "Hợp đồng" -> "Thanh toán";
-                            "Thanh toán" -> "Trong 3 ngày";
-                        }}
+EXAMPLE:
+If the document is about: "A software project that includes frontend development, backend API services, and database management with security protocols."
+You must return exactly:
+{{
+    "title": "Dự án phần mềm",
+    "nodes": [
+        {{"id": "1", "label": "Dự án phần mềm", "parent": null}},
+        {{"id": "2", "label": "Thành phần chính", "parent": "1"}},
+        {{"id": "3", "label": "Frontend", "parent": "2"}},
+        {{"id": "4", "label": "Backend API", "parent": "2"}},
+        {{"id": "5", "label": "Quản lý dữ liệu", "parent": "2"}},
+        {{"id": "6", "label": "Giao thức bảo mật", "parent": "5"}}
+    ]
+}}
 
-                        Nội dung ngữ cảnh tài liệu cần xử lý:
-                        {context}
+Document content to analyze:
+{context}
 
-                        Mã DOT sơ đồ tư duy:"""
+JSON mindmap:"""
 
         if embedding_model == "gemini":
             if self.gemini_client is None:
@@ -226,7 +231,16 @@ class AIService:
                     if attempt == max_retries - 1:
                         raise e
                     time.sleep(2 ** attempt)
-            return self.get_response_text(resp)
+            response_text = self.get_response_text(resp)
+            try:
+                return json.loads(response_text)
+            except json.JSONDecodeError:
+                # If response is not valid JSON, try to extract JSON from it
+                import re
+                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                if json_match:
+                    return json.loads(json_match.group())
+                raise ValueError("Không thể parse JSON từ response của Gemini.")
         else:
             if not self.is_ollama_available():
                 raise ValueError("Tài liệu này được nạp bằng mô hình Ollama cục bộ nhưng Ollama đang offline. Vui lòng khởi động Ollama trên máy tính của bạn, hoặc nạp lại tài liệu mới bằng Gemini.")
@@ -243,7 +257,16 @@ class AIService:
                     "num_predict": -1
                 },
             )
-            return resp["message"]["content"]
+            response_text = resp["message"]["content"]
+            try:
+                return json.loads(response_text)
+            except json.JSONDecodeError:
+                # If response is not valid JSON, try to extract JSON from it
+                import re
+                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                if json_match:
+                    return json.loads(json_match.group())
+                raise ValueError("Không thể parse JSON từ response của Ollama.")
 
 # Khởi tạo instance dùng chung cho toàn dự án (Singleton Pattern)
 ai_service = AIService()

@@ -11,7 +11,7 @@ GEMINI_LLM_MODEL = "gemini-3.5-flash"
 GEMINI_EMBED_MODEL = "gemini-embedding-001"
 
 # Cấu hình định danh mô hình sử dụng
-LLM_MODEL = "vicuna:7b-v1.5-q5_1"
+LLM_MODEL = "gemma2:9b"
 EMBED_MODEL = "bge-m3"
 
 # Thư mục vật lý trên ổ cứng để lưu trữ Vector Database
