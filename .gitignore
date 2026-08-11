@@ -3,6 +3,18 @@ env/
 venv/
 **/__pycache__/
 *.pyc
-# Bỏ qua thư mục dữ liệu cơ sở dữ liệu vector local
-data/chroma_db/
+
+# Dữ liệu vector database khi bật chế độ lưu xuống ổ cứng
+data/
+
+# Bộ test chỉ chạy ở máy local, không đẩy lên repo
+tests/
+
+# Cache của công cụ kiểm thử
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
 .env
+.DS_Store

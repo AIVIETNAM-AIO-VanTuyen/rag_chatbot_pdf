@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Cài đặt thư viện
+        run: pip install -r requirements-dev.txt
+
+      - name: Kiểm tra lint
+        run: ruff check app.py app/
+
+      # Bộ test nằm ngoài repo (chỉ chạy ở máy local) nên CI không chạy pytest.
+      - name: Kiểm tra ứng dụng import được
+        run: python -c "import app.infra.container, app.ui.chat_view, app.ui.login_view"

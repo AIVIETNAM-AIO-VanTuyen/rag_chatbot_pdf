@@ -2,131 +2,157 @@
 
 Dự án **PDF RAG Chatbot** là một ứng dụng hỏi đáp thông minh dựa trên nội dung tài liệu PDF do người dùng tải lên. Ứng dụng sử dụng kỹ thuật **RAG (Retrieval-Augmented Generation)** để trích xuất ngữ cảnh chính xác từ tài liệu và trả lời câu hỏi.
 
-Ứng dụng hỗ trợ cơ chế chạy song song và dự phòng linh hoạt:
-- **Chạy cục bộ (Local)**: Sử dụng Ollama.
-- **Chạy trên đám mây (Cloud)**: Tự động chuyển hướng sang Google Gemini API khi máy cục bộ chưa bật Ollama hoặc thiếu mô hình.
+Ứng dụng chạy trên **Google Gemini API** — không cần cài đặt mô hình cục bộ, chỉ cần một API key.
 
 ---
 
 ## 🛠️ Công nghệ sử dụng
 
 1. **Frontend & App Framework**: [Streamlit](https://streamlit.io/) (Python)
-2. **Vector Database**: [ChromaDB](https://www.trychroma.com/) (Chạy **In-memory** tạm thời trong bộ nhớ RAM, tự động dọn dẹp khi tải tài liệu mới)
-3. **Local Engine (Mặc định)**:
-   - Mô hình nhúng (Embedding): `bge-m3` (chạy qua Ollama)
-   - Mô hình ngôn ngữ (LLM): `vicuna:7b-v1.5-q5_1` (chạy qua Ollama)
-4. **Cloud Fallback (Dự phòng)**:
-   - Mô hình nhúng (Embedding): `gemini-embedding-001` (chạy qua Google GenAI API)
-   - Mô hình ngôn ngữ (LLM): `gemini-3.5-flash` (chạy qua Google GenAI API)
-5. **Trích xuất PDF**: `pypdf`
-6. **Vẽ sơ đồ tư duy**: [Graphviz](https://graphviz.org/) (Tích hợp trực tiếp qua Streamlit, tự động co giãn vừa màn hình, không lỗi cú pháp)
+2. **Vector Database**: [ChromaDB](https://www.trychroma.com/) — mặc định chạy **in-memory**, bật `CHROMA_PERSIST_DIR` để lưu xuống ổ cứng
+3. **AI Engine**: [Google Gemini](https://ai.google.dev/)
+   - Mô hình nhúng (Embedding): `gemini-embedding-001`
+   - Mô hình ngôn ngữ (LLM): `gemini-3.5-flash`
+4. **Trích xuất PDF**: `pypdf`
+5. **Cấu hình**: `pydantic-settings` (đọc `.env`, có kiểm tra hợp lệ)
+6. **Vẽ sơ đồ tư duy**: [Graphviz](https://graphviz.org/) tích hợp qua Streamlit
 
 ---
 
-## 📂 Cấu trúc thư mục dự án
+## 🏗️ Kiến trúc
+
+Dự án đi theo kiến trúc phân tầng (ports & adapters). Nguyên tắc là **phụ thuộc chỉ hướng vào trong**: `ui` → `usecases` → `domain`, còn `adapters` cắm vào các interface do `domain` định nghĩa.
 
 ```text
 rag_chatbot_pdf/
-├── app.py                     # Điểm chạy chính (Main Entrypoint)
-├── .env                       # File cấu hình khóa bảo mật (API Key) - Đã được thêm vào .gitignore
-├── .env.example               # File mẫu cấu hình
-├── app/                       # Thư mục chứa mã nguồn chính
-│   ├── config.py              # Cấu hình Model, Prompt
-│   ├── auth/                  # Quản lý xác thực người dùng
-│   │   └── service.py
-│   ├── core/                  # Core RAG và Database (Cấu trúc OOP)
-│   │   ├── database.py        # Lớp ChromaDatabaseManager (Singleton)
-│   │   └── rag.py             # Lớp AIService (Singleton)
-│   ├── services/              # Xử lý nghiệp vụ PDF
-│   │   └── pdf_service.py     # Lớp PDFProcessor (OOP)
-│   └── ui/                    # Các màn hình giao diện (Streamlit Views)
-│       ├── chat_view.py       # Màn hình hỏi đáp chính
-│       └── login_view.py      # Màn hình đăng nhập
-├── requirements.txt           # Danh sách thư viện phụ thuộc
-└── README.md                  # Hướng dẫn dự án
+├── app.py                        # Điểm chạy Streamlit, chỉ định tuyến màn hình
+├── app/
+│   ├── domain/                   # Thuần Python — không import streamlit/chromadb/genai
+│   │   ├── models.py             # Chunk, DocumentRef, ChatTurn, Answer
+│   │   ├── ports.py              # Interface: LLMProvider, EmbeddingProvider, VectorStore
+│   │   ├── chunking.py           # Thuật toán cắt chunk
+│   │   ├── naming.py             # Sinh tên collection kèm định danh chủ sở hữu
+│   │   ├── json_utils.py         # Đọc JSON từ output của LLM
+│   │   └── errors.py             # Cây exception nghiệp vụ
+│   ├── adapters/                 # Nơi DUY NHẤT được import thư viện bên ngoài
+│   │   ├── gemini_provider.py    # LLM + embedding qua Google Gemini
+│   │   ├── chroma_store.py       # Vector store
+│   │   ├── pdf_loader.py         # Đọc PDF
+│   │   └── retry.py              # Thử lại với backoff
+│   ├── usecases/                 # Nghiệp vụ — viết một lần, chạy với mọi provider
+│   │   ├── ingest_document.py
+│   │   ├── answer_question.py
+│   │   ├── generate_mindmap.py
+│   │   ├── authenticate.py
+│   │   ├── retrieval.py          # Phần truy hồi dùng chung
+│   │   └── prompts.py            # Toàn bộ prompt gom về một chỗ
+│   ├── infra/
+│   │   ├── settings.py           # Cấu hình từ .env, có validate
+│   │   ├── container.py          # Lắp ráp phụ thuộc
+│   │   └── logging.py
+│   └── ui/                       # Chỉ render, không chứa logic nghiệp vụ
+│       ├── state.py              # Cầu nối Streamlit ↔ container
+│       ├── login_view.py
+│       ├── chat_view.py
+│       ├── sidebar.py
+│       ├── mindmap_view.py
+│       └── mindmap_dot.py        # Sinh mã Graphviz DOT (thuần, không dùng Streamlit)
+├── requirements.txt              # Thư viện chạy app (đã ghim phiên bản)
+├── requirements-dev.txt          # Thêm pytest + ruff
+└── pyproject.toml                # Cấu hình ruff và pytest
 ```
+
+**Vì sao chia như vậy**: mọi thứ liên quan tới nhà cung cấp mô hình đều nằm sau hai interface `LLMProvider` và `EmbeddingProvider` trong [`app/domain/ports.py`](app/domain/ports.py). Hai lợi ích cụ thể: test thay được Gemini bằng đối tượng giả nên toàn bộ test chạy offline; và nếu sau này đổi hoặc thêm nhà cung cấp thì chỉ viết thêm một adapter, không đụng tới usecase.
 
 ---
 
 ## 🚀 Hướng dẫn cài đặt & Chạy ứng dụng
 
 ### 1. Yêu cầu hệ thống
-- Máy tính đã cài đặt **Python 3.9+**.
-- *(Tùy chọn)* Nếu muốn chạy offline cục bộ: Đã cài đặt **Ollama** và tải về các mô hình tương ứng:
-  ```bash
-  # Tải mô hình Embedding
-  ollama pull bge-m3
-  
-  # Tải mô hình LLM
-  ollama pull vicuna:7b-v1.5-q5_1
-  ```
+
+- **Python 3.11+**
+- **Gemini API key** — lấy miễn phí tại [Google AI Studio](https://aistudio.google.com/)
 
 ### 2. Thiết lập môi trường ảo và cài đặt thư viện
-Tại thư mục gốc của dự án, mở terminal và chạy:
 
 ```bash
-# Tạo môi trường ảo
 python3 -m venv .venv
 
-# Kích hoạt môi trường ảo
-# Trên macOS / Linux:
+# macOS / Linux:
 source .venv/bin/activate
-# Trên Windows:
+# Windows:
 # .venv\Scripts\activate
 
-# Cài đặt các thư viện cần thiết (bao gồm google-genai và python-dotenv)
 pip install -r requirements.txt
 ```
 
-### 3. Cấu hình biến môi trường (Cho Gemini)
-Nếu không chạy Ollama cục bộ, ứng dụng sẽ yêu cầu cấu hình Gemini API Key:
-1. Nhân bản file cấu hình mẫu:
-   ```bash
-   cp .env.example .env
-   ```
-2. Mở file `.env` và nhập khóa API của bạn:
-   ```env
-   GEMINI_API_KEY=khóa_api_gemini_của_bạn
-   ```
-   *(Lấy key tại [Google AI Studio](https://aistudio.google.com/))*
+### 3. Cấu hình biến môi trường
+
+```bash
+cp .env.example .env
+```
+
+Mở `.env` và điền khoá API (bắt buộc):
+
+```env
+GEMINI_API_KEY=khóa_api_gemini_của_bạn
+```
+
+*(Lấy key tại [Google AI Studio](https://aistudio.google.com/))*
+
+Các tham số khác (kích thước chunk, số đoạn truy hồi, giới hạn file, số lượt hội thoại gửi kèm...) đều chỉnh được trong `.env` — xem `.env.example` để biết danh sách đầy đủ.
 
 ### 4. Khởi chạy ứng dụng
-Chạy ứng dụng bằng lệnh sau:
+
 ```bash
 streamlit run app.py
 ```
 
-Ứng dụng sẽ tự động mở trên trình duyệt tại địa chỉ mặc định: `http://localhost:8501`.
+Ứng dụng mở tại `http://localhost:8501`.
+
+---
+
+## 🧪 Phát triển
+
+```bash
+pip install -r requirements-dev.txt
+
+ruff check app.py app/       # kiểm tra lint
+```
+
+Bộ test (115 test, chạy hoàn toàn offline nhờ thay Gemini bằng đối tượng giả) được giữ ở máy local và không nằm trong repo này.
 
 ---
 
 ## 🔐 Tài khoản đăng nhập demo
 
-Sau khi khởi chạy, màn hình đăng nhập (Login View) sẽ hiển thị. Bạn có thể sử dụng tài khoản mặc định sau để truy cập:
-
 - **Tên đăng nhập:** `admin`
 - **Mật khẩu:** `admin123`
+
+Đổi được qua `AUTH_USERNAME` / `AUTH_PASSWORD` trong `.env`. Đây vẫn là xác thực tạm cho bản demo — xác thực thật (lưu người dùng trong DB, băm mật khẩu bằng bcrypt) nằm trong kế hoạch nâng cấp.
 
 ---
 
 ## 💡 Các tính năng nổi bật
 
-- **Tái cấu trúc hướng đối tượng (OOP)**: Toàn bộ lõi ứng dụng được viết bằng các lớp đối tượng chuyên biệt (`ChromaDatabaseManager`, `AIService`, `PDFProcessor`) kết hợp cùng Singleton Pattern để tối ưu tài nguyên và dễ mở rộng.
-- **Lưu trữ Vector In-Memory**: Vector chỉ được lưu tạm thời trong RAM (không lưu xuống ổ cứng). Mỗi lần người dùng tải lên tài liệu mới, hệ thống tự động dọn dẹp các tài liệu cũ để đảm bảo **chỉ hỏi đáp thông tin của tài liệu hiện tại**.
-- **Cơ chế dự phòng thông minh (Gemini Fallback)**: Tự động chuyển đổi mượt mà sang Gemini API nếu phát hiện Ollama offline hoặc thiếu mô hình.
-- **Xử lý trượt & Giới hạn tần suất gọi API (Rate Limit / Overloaded)**: Trích xuất embedding bằng Gemini theo từng batch nhỏ (tối đa 20 văn bản/lần) đi kèm cơ chế tự động nghỉ (sleep) và thử lại có thời gian giãn cách tăng dần (Exponential Backoff) để xử lý lỗi 429/503.
-- **Tránh lỗi Dimension Mismatch**: Lưu trữ thông tin loại mô hình nhúng (`ollama` hoặc `gemini`) vào metadata của từng tài liệu. Ngăn chặn việc truy vấn chéo sai chiều không gian vector.
-- **Xuất Sơ đồ tư duy đa dạng (Mindmap)**: Tự động trích xuất nội dung cốt lõi của tài liệu để vẽ sơ đồ tư duy trực quan bằng **Graphviz** với 4 kiểu định dạng hiển thị: Tỏa tròn hai bên từ tâm, Nhánh ngang, Nhánh dọc và Tab chuyên biệt Tỏa tròn bong bóng (`twopi`), hỗ trợ tự động co giãn vừa vặn màn hình và tích hợp sẵn nút ghi chú chi tiết nét đứt.
-- **Giao diện Glassmorphism**: Thiết kế bắt mắt, phông chữ Outfit sang trọng và hiệu ứng chuyển đổi mượt mà.
+- **Kiến trúc ports & adapters**: logic RAG độc lập hoàn toàn với nhà cung cấp mô hình. Thêm provider mới = thêm một file adapter.
+- **Cô lập dữ liệu theo phiên**: mỗi phiên trình duyệt có `owner_id` riêng, tên collection mang tiền tố đó. Nhiều người dùng app cùng lúc không xoá đè tài liệu của nhau.
+- **Hỏi đáp có ngữ cảnh hội thoại**: N lượt gần nhất được gửi kèm cho LLM, nên các câu hỏi nối tiếp ("giải thích rõ hơn đi", "cái đó là gì") hoạt động đúng.
+- **Trích dẫn nguồn**: số trang được lưu ở metadata của vector store và hiển thị dưới mỗi câu trả lời.
+- **Xử lý Rate Limit**: nhúng bằng Gemini theo batch nhỏ, có nghỉ giữa batch và thử lại với backoff tăng dần để chịu lỗi 429/503.
+- **Tránh lỗi Dimension Mismatch**: tài liệu ghi nhớ model embedding đã dùng lúc nạp; nếu sau này đổi `GEMINI_EMBED_MODEL` thì hệ thống báo lỗi rõ ràng và yêu cầu nạp lại, thay vì trả về kết quả sai âm thầm.
+- **Chốt chặn đầu vào**: giới hạn dung lượng, số trang, và báo lỗi rõ ràng với PDF scan ảnh (chưa hỗ trợ OCR) thay vì âm thầm index nội dung rỗng.
+- **Xuất Sơ đồ tư duy (Mindmap)**: 4 kiểu hiển thị bằng Graphviz — toả tròn từ tâm, nhánh ngang, nhánh dọc và toả tròn bong bóng (`twopi`), kèm nút ghi chú nét đứt.
+- **Giao diện Glassmorphism**: phông chữ Outfit và hiệu ứng chuyển đổi mượt.
 
 ---
 
 ## 📷 Hình ảnh minh họa sơ đồ tư duy
 
-Dưới đây là hình ảnh thực tế các dạng sơ đồ tư duy được tạo tự động từ tài liệu PDF:
-
 ### 1. Sơ đồ trực quan tỏa hai bên (Visual Diagram)
+
 ![Sơ đồ trực quan tỏa hai bên](visual_diagram.png)
 
 ### 2. Sơ đồ tỏa tròn bong bóng (Circular Diagram)
+
 ![Sơ đồ tỏa tròn bong bóng](circular_diagram.png)

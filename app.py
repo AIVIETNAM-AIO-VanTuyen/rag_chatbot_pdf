@@ -1,18 +1,21 @@
 # app.py
-# Trigger hot reload: them anh minh hoa vao README.md
+"""Điểm chạy chính của ứng dụng Streamlit."""
 import streamlit as st
-from app.auth.service import init_auth_state
-from app.ui.login_view import show_login_view
+
 from app.ui.chat_view import show_chat_view
+from app.ui.login_view import show_login_view
+from app.ui.state import init_session_state
 
-# Cấu hình trang Streamlit (Phải gọi đầu tiên trước các command Streamlit khác)
-st.set_page_config(page_title="PDF RAG Chatbot", layout="wide", initial_sidebar_state="expanded")
+# Phải gọi trước mọi lệnh Streamlit khác.
+st.set_page_config(
+    page_title="PDF RAG Chatbot",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
-# Khởi tạo trạng thái xác thực người dùng
-init_auth_state()
+init_session_state()
 
-# Định tuyến giao diện dựa trên trạng thái đăng nhập
-if not st.session_state.authenticated:
-    show_login_view()
-else:
+if st.session_state.authenticated:
     show_chat_view()
+else:
+    show_login_view()
